@@ -1,0 +1,19 @@
+function x1 = TwoLinkPoincare(x0)
+
+    x0 = x0(:);
+
+    % change one of the coords of x0 to ensure x0 is in S
+    x0(1) = x0(2)/2; % theta = phi/2
+
+    x_i = [x0(1)+eps, x0(2) , x0(3) , x0(4)];
+    options = odeset('Events', @(t, x) two_link_event(t, x));
+
+    % can get rid of t cuz time invariant
+    [~, x_final] = ode45(@(t,x) two_link_dynamics(t,x), [0, 10], x_i, options);
+    x1 = x_final(end, :);
+    x1(2) = x1(1)*2; % phi = theta*2
+
+    
+
+
+end

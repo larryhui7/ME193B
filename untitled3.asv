@@ -1,0 +1,141 @@
+%% Question 1, part a)
+syms x y q1 q2 q3 xdot ydot q1dot q2dot q3dot real
+
+% generalized coords
+q = [x y q1 q2 q3];
+
+% generalized velocity
+dq = [xdot ydot q1dot q2dot q3dot];
+
+% constants
+m_torso = 10;  % kg
+m_leg = 5;     % kg
+I_torso = 1;   % kg-m^2
+I_leg = 0.5;   % kg-m^2
+l_torso = 0.5; % m
+l_leg = 1;     % m
+g = 9.81;      % m/s^2
+
+% Configuration 1
+conf1 = [0.5, sqrt(3)/2, deg2rad(150), deg2rad(120), deg2rad(30)];
+
+% Configuration 2
+conf2 = [0.3420, 0.9397, deg2rad(170), deg2rad(20), deg2rad(30)];
+
+% Posistion of the COM
+p_leg1 = [x;y] + (l_leg/2)*[sin(q1 + q3); cos(q1 + q3)];
+p_leg2 = [x;y] + (l_leg/2)*[sin(q2 + q3); cos(q2 + q3)];
+p_torso = [x;y] + (l_torso/2)*[sin(q3); cos(q3)];
+
+P = [p_leg1 p_leg2 p_torso];
+
+P1 = double(subs(P, q, conf1));
+P2 = double(subs(P, q, conf2));
+
+%% Question 1, part b)
+
+qdot1 = [-0.8049, -0.4430, 0.0938, 0.9150, 0.9298];
+qdot2 = [-0.1225, -0.2369, 0.5310, 0.5904, 0.6263];
+
+dP_leg1 = simplify(jacobian(p_leg1, q) * dq');
+dP_leg2 = simplify(jacobian(p_leg2, q) * dq');
+dP_torso = simplify(jacobian(p_torso, q) * dq');
+
+dP = [dP_leg1 dP_leg2 dP_torso];
+
+dP1 = double(subs(dP, [q , dq], [conf1, qdot1]));
+dP2 = double(subs(dP, [q , dq], [conf2, qdot2]));
+
+%% Question 1, part c)
+
+T_leg1 = 0.5*m_leg*(dP_leg1'*dP_leg1) + 0.5*I_leg*(q3dot+q1dot)^2;
+T_leg2 = 0.5*m_leg*(dP_leg2'*dP_leg2) + 0.5*I_leg*(q3dot+q2dot)^2;
+T_torso =  0.5*m_torso*(dP_torso'*dP_torso) + 0.5*I_torso*(q3dot)^2;
+
+T = T_leg1 + T_leg2 + T_torso;
+
+T1 = double(subs(T, [q , dq], [conf1, qdot1]));
+T2 = double(subs(T, [q , dq], [conf2, qdot2]));
+
+%% Question 1, part d)
+
+e2 = [0;1];
+
+U_leg1 = m_leg * g * (p_leg1' * e2);
+U_leg2 = m_leg * g * (p_leg2' * e2);
+U_torso = m_torso * g * (p_torso' * e2);
+
+U = simplify(U_leg1 + U_leg2 + U_torso);
+
+U1 = double(subs(U, [q, dq], [conf1, qdot1]));
+U2 = double(subs(U, [q, dq], [conf2, qdot2]));
+
+%% Question 1, part e) 
+
+q_act = [q1 ; q_2];
+
+[D, C, G, B] = LagrangianDynamics(T, U, q', dq', q_act);
+
+% D(q)
+D1 = double(subs(Dsym, qc, conf1.'));
+D2 = double(subs(Dsym, qc, conf2.'));
+
+% C(q,dq)*dq
+C1 = double(subs(Csym, [qc; dqc], [conf1.'; qdot1.']));
+C2 = double(subs(Csym, [qc; dqc], [conf2.'; qdot2.']));
+
+% G(q)
+G1 = double(subs(Gsym, qc, conf1.'));
+G2 = double(subs(Gsym, qc, conf2.'));
+
+% B(q)
+B1 = double(subs(Bsym, qc, conf1.'));  % (here B is constant)
+B2 = double(subs(Bsym, qc, conf2.'));
+
+% Display nicely
+disp('--- Part (e): Dynamics at configuration (i) ---');
+disp('D(q):');      disp(D1);
+disp('C(q,dq)*dq:');disp(Cqdot1);
+disp('G(q):');     disp(G1);
+disp('B(q):');     disp(B1);
+
+disp('--- Part (e): Dynamics at configuration (ii) ---');
+disp('D(q):');      disp(D2);
+disp('C(q,dq)*dq:');disp(Cqdot2);
+disp('G(q):');      disp(G2);
+disp('B(q):');      disp(B2);
+
+
+%% Lagrangian Dynamics
+% Function to output the dynamics matrices. Uses the lagrangian method.
+% Inputs:
+%   T: Kinetic Energy scalar
+%   U: Potential Energy scalar
+%   q: Generalized coordinates
+%   dq: Time-derivative of the generalized coordinates
+%   q_act: Actuated angles of the system
+% Outputs:
+%   D: D(q) Inertia matrix
+%   C: C(q,dq) Coriollis matrix
+%   G: G(q) Gravity matrix
+%   B: B(q) Input Matrix?
+
+function [D, C, G, B] = LagrangianDynamics(T, U, q, dq, q_act)
+
+D = simplify( jacobian(jacobian(T,dq), dq) ) ;
+for k=1:length(q)
+    for j=1:length(q)
+        C(k,j) = sym(0) ;
+        for i=1:length(q)
+            C(k,j) = C(k,j) + 1/2 * ( diff(D(k,j),q(i)) + diff(D(k,i),q(j)) - diff(D(i,j),q(k)) ) * dq(i) ;
+        end
+    end
+end
+C = simplify(C) ;
+G = simplify( jacobian(U,q) )' ;
+B = jacobian(q_act, q)' ;
+
+end
+
+
+
